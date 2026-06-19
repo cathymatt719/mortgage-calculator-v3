@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<!-- Cathy layout update v10: added bidirectional Affordability slider/input sync -->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mortgage Calculators</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --ink:#1f2937;
+    --ink-soft:#374151;
+    --muted:#9aa3b2;
+    --line:#e5e7eb;
+    --sidebar:#1a1d23;
+    --sidebar-input:#2a2e36;
+    --sidebar-input-border:#3a3f48;
+    --sidebar-text:#e5e7eb;
+    --sidebar-label:#9aa3b2;
+    --sidebar-help:#6b7280;
+    --green:#2ecc71;
+    --green-dark:#22c55e;
+    --green-soft:#e8f7ee;
+    --green-soft-2:#d1fadf;
+    --pink-soft:#fde7e7;
+    --pink-2:#fbc2c2;
+    --blue:#2563eb;
+    --blue-dark:#1d4ed8;
+    --orange:#f59e0b;
+    --pi:#fb923c;
+    --tax:#5eead4;
+    --ins:#f472b6;
+    --hoa:#60a5fa;
+    --pmi:#eab308;
+    --extra:#a855f7;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:14px;line-height:1.45;}
+  .wrap{
+    max-width:1500px;
+    width:100%;
+    margin:0 auto;
+    padding:18px 32px 48px;
+    overflow-x:hidden;
+  }
+
+  /* ===== Tab nav ===== */
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);align-items:flex-end;
+    overflow-x:auto;padding-bottom:0;}
+  .tabs .title{font-weight:800;font-size:16px;padding:14px 18px 14px 0;color:var(--ink);white-space:nowrap;}
+  .tabs button{
+    background:transparent;border:none;font-family:inherit;font-size:13px;font-weight:600;
+    color:var(--ink-soft);padding:14px 14px;cursor:pointer;
+    border-bottom:3px solid transparent;white-space:nowrap;
+    transition:color .15s,border-color .15s;
+  }
+  .tabs button:hover{color:var(--ink);}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--green);}
+
+  /* ===== Layout ===== */
+  .panel{display:none;margin-top:18px;}
+  .panel.on{display:block;}
+  .panel-grid{display:grid;grid-template-columns:370px minmax(0,1fr);gap:16px;align-items:start;}
+  .panel-grid > *, .panel-grid-3 > *{min-width:0;}
+  .panel-grid-3{display:grid;grid-template-columns:350px minmax(0,.9fr) minmax(380px,420px);gap:16px;align-items:start;}
+  @media (max-width:1380px){.panel-grid-3{grid-template-columns:350px minmax(0,1fr);} .panel-grid-3 > :nth-child(3){grid-column:1/-1;}}
+  @media (max-width:900px){.panel-grid,.panel-grid-3{grid-template-columns:1fr;} .panel-grid-3 > :nth-child(3){grid-column:auto;}}
+
+  /* ===== Sidebar (dark) ===== */
+  .sidebar{
+    background:var(--sidebar);color:var(--sidebar-text);
+    border-radius:14px;padding:20px;
+  }
+  .sidebar h3{font-size:14px;font-weight:700;margin:0 0 16px;color:#fff;}
+  .sidebar .sub-tabs{display:flex;gap:14px;border-bottom:1px solid #2f343c;margin-bottom:18px;flex-wrap:wrap;}
+  .sidebar .sub-tabs button{
+    background:none;border:none;color:#9aa3b2;font-family:inherit;font-size:12px;font-weight:700;
+    padding:6px 0 8px;cursor:pointer;border-bottom:2px solid transparent;
+  }
+  .sidebar .sub-tabs button.on{color:#fff;border-bottom-color:var(--green);}
+  .sidebar .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+  .sidebar .field{margin-bottom:12px;min-width:0;}
+  .sidebar .ctrl input,.sidebar .ctrl select{min-width:0;width:100%;}
+  .sidebar label{display:block;font-size:11px;color:var(--sidebar-label);margin-bottom:6px;font-weight:600;}
+  .sidebar label .help{
+    display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+    border:1px solid var(--sidebar-help);color:var(--sidebar-help);font-size:9px;margin-left:4px;font-style:italic;
+  }
+  .sidebar .ctrl{
+    display:flex;align-items:center;background:var(--sidebar-input);border:1px solid var(--sidebar-input-border);
+    border-radius:8px;padding:0;overflow:hidden;
+  }
+  .sidebar .ctrl input, .sidebar .ctrl select{
+    flex:1;min-width:0;background:transparent;border:none;color:#fff;font-family:inherit;font-size:13px;
+    padding:10px 12px;outline:none;
+  }
+  .sidebar .ctrl select{appearance:none;cursor:pointer;}
+  .sidebar .ctrl .toggle-mini{display:flex;background:var(--sidebar-input-border);margin-right:4px;border-radius:6px;overflow:hidden;}
+  .sidebar .ctrl .toggle-mini button{
+    background:transparent;border:none;color:#9aa3b2;font-family:inherit;font-size:11px;padding:5px 9px;cursor:pointer;font-weight:700;
+  }
+  .sidebar .ctrl .toggle-mini button.on{background:#4a5260;color:#fff;}
+
+  /* Targeted spacing fix for Loan Term controls with Year/Month toggles */
+  .sidebar .ctrl.term-ctrl input{
+    flex:1 1 auto;
+    min-width:72px;
+    padding-right:8px;
+  }
+  .sidebar .ctrl.term-ctrl .toggle-mini{
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+  .sidebar .ctrl.term-ctrl .toggle-mini button{
+    padding-left:7px;
+    padding-right:7px;
+  }
+
+  .sidebar .seg{
+    display:flex;background:var(--sidebar-input);border-radius:8px;padding:3px;
+  }
+  .sidebar .seg button{
+    flex:1;background:transparent;border:none;color:#9aa3b2;padding:8px;border-radius:6px;
+    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
+  }
+  .sidebar .seg button.on{background:#4a5260;color:#fff;}
+  .sidebar .radio{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--sidebar-input);
+    border:1px solid var(--sidebar-input-border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;}
+  .sidebar .radio input{accent-color:#fff;}
+  .sidebar .radio.on{background:#4a5260;border-color:#4a5260;color:#fff;}
+  .sidebar .section-title{font-size:11px;color:#9aa3b2;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:18px 0 10px;}
+  .sidebar .cta{
+    width:100%;background:#fff;color:var(--ink);font-weight:800;border:none;border-radius:10px;
+    padding:14px;margin-top:18px;cursor:pointer;font-family:inherit;letter-spacing:.04em;font-size:12px;
+  }
+
+  /* ===== Right content cards ===== */
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px;}
+  .card h3{font-size:15px;font-weight:800;margin:0 0 16px;}
+  .card .info{float:right;color:#cbd5e1;font-size:14px;}
+
+  /* banner stats */
+  .banner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;padding:18px 24px;border-radius:12px;margin-bottom:14px;}
+  .banner.green{background:var(--green-soft);}
+  .banner.pink{background:var(--pink-soft);}
+  .banner .b-item .lbl{font-size:11px;color:#6b7280;font-weight:600;}
+  .banner .b-item .val{font-size:16px;font-weight:800;margin-top:2px;}
+  .banner.green .val{color:#15803d;}
+  .banner.pink .val{color:#b91c1c;}
+
+  /* stat cards */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+  .stat-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;}
+  .stat-card{padding:16px;border-radius:12px;text-align:center;min-width:0;overflow-wrap:anywhere;}
+  .stat-card .lbl{font-size:11px;font-weight:600;}
+  .stat-card .val{font-size:22px;font-weight:800;margin-top:6px;}
+  .stat-card.green{background:var(--green-soft);}
+  .stat-card.green .lbl{color:#374151;} .stat-card.green .val{color:#15803d;}
+  .stat-card.green-strong{background:var(--green-soft);border:2px solid var(--green);}
+  .stat-card.pink{background:var(--pink-soft);}
+  .stat-card.pink .lbl{color:#374151;} .stat-card.pink .val{color:#b91c1c;}
+  .stat-card.pink-strong{background:var(--pink-soft);border:2px solid #fca5a5;}
+  .stat-card.blue{background:#2563eb;color:#fff;text-align:left;padding:18px;border-radius:10px;}
+  .stat-card.blue .lbl{color:#bfdbfe;font-size:12px;} .stat-card.blue .val{font-size:18px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  @media (max-width:800px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+
+  /* donut and legend */
+  .donut-row{display:grid;grid-template-columns:180px minmax(0,1fr);gap:18px;align-items:center;}
+  @media (max-width:600px){.donut-row{grid-template-columns:1fr;justify-items:center;}}
+  .donut-box{position:relative;width:180px;height:180px;}
+  .donut-center{position:absolute;inset:0;display:grid;place-items:center;text-align:center;}
+  .donut-center .v{font-size:18px;font-weight:800;}
+  .donut-center .s{font-size:11px;color:var(--muted);}
+  .legend{display:flex;flex-direction:column;gap:10px;}
+  .legend .li{display:flex;align-items:center;gap:10px;font-size:13px;}
+  .legend .dot{width:10px;height:10px;border-radius:50%;}
+  .legend .nm{font-weight:600;color:var(--ink-soft);}
+  .legend .v{color:#6b7280;}
+
+  /* tabs inside cards */
+  .tabs-inline{display:flex;border-bottom:1px solid var(--line);margin-bottom:16px;}
+  .tabs-inline button{flex:1;background:none;border:none;font-family:inherit;font-size:13px;font-weight:600;
+    color:var(--ink-soft);padding:10px 0;cursor:pointer;border-bottom:3px solid transparent;}
+  .tabs-inline button.on{color:var(--green-dark);border-bottom-color:var(--green);}
+
+  /* loan details key-value grid */
+  .kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;}
+  .kv .k{font-size:11px;color:#6b7280;}
+  .kv .v{font-size:15px;font-weight:700;margin-top:2px;}
+
+  /* refinance compare bars */
+  .bar-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-bottom:8px;}
+  .bar-name{font-size:12px;color:var(--ink-soft);font-weight:600;}
+  .bar-val{font-size:13px;font-weight:700;}
+  .bar-track{grid-column:1/-1;height:18px;border-radius:4px;background:#eef0f3;overflow:hidden;margin-bottom:14px;}
+  .bar-fill{height:100%;border-radius:4px;}
+  .bar-dark{background:#1a1d23;}
+  .bar-pink{background:var(--pink-2);}
+  .bar-green{background:var(--green);}
+  .bar-greensoft{background:var(--green-soft-2);}
+
+  /* affordability summary box (blue) */
+  .summary-blue{background:#eff5ff;border:1px solid #bedcff;border-radius:10px;padding:18px;font-size:13px;color:var(--ink);}
+  .summary-blue .hl{color:var(--blue-dark);font-weight:800;}
+
+  /* sliders */
+  .slider-row{display:grid;grid-template-columns:1fr;gap:8px;padding:16px 18px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:12px;}
+  .slider-row .top{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);}
+  .slider-row .top .v{font-weight:800;color:var(--ink);}
+  input[type="range"]{accent-color:var(--green-dark);}
+  input[type="range"].blue{accent-color:var(--blue);}
+
+  /* Affordability right-column slider interaction fix */
+  [data-panel="aff"] .panel-grid-3 > :nth-child(3){
+    position:relative;
+    z-index:3;
+    min-width:0;
+  }
+  [data-panel="aff"] .slider-row{
+    position:relative;
+    z-index:4;
+  }
+  [data-panel="aff"] .slider-row input[type="range"]{
+    touch-action:pan-y;
+    position:relative;
+    z-index:5;
+    width:100%;
+    cursor:pointer;
+    pointer-events:auto;
+  }
+
+
+  /* result summary table for rent vs buy */
+  .compare-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .compare-table th{text-align:right;color:#6b7280;font-weight:700;padding:8px 12px;font-size:12px;}
+  .compare-table th:first-child{text-align:left;}
+  .compare-table td{text-align:right;padding:10px 12px;border-top:1px solid #f1f5f9;font-variant-numeric:tabular-nums;}
+  .compare-table td:first-child{text-align:left;color:var(--ink-soft);font-weight:600;}
+  .compare-table tr.win-buy td:nth-child(2){color:var(--green-dark);font-weight:700;}
+  .compare-table tr.win-rent td:nth-child(3){color:var(--green-dark);font-weight:700;}
+
+  /* note boxes */
+  .note-pink{background:var(--pink-soft);border-radius:8px;padding:14px 16px;font-size:13px;color:#7f1d1d;margin-bottom:12px;}
+  .note-pink .ttl{font-weight:800;display:block;margin-bottom:4px;}
+  .note-green{background:var(--green-soft);border-radius:8px;padding:14px 16px;font-size:13px;color:#14532d;margin-bottom:12px;}
+  .note-green .ttl{font-weight:800;display:block;margin-bottom:4px;}
+
+  .disclaimer{margin-top:18px;font-size:12px;color:#6b7280;padding:0 6px;}
+  .disclaimer b{color:#374151;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============= TOP TABS ============= -->
+  <nav class="tabs" id="mainTabs">
+    <div class="title">Calculator</div>
+    <button data-tab="aff" class="on">Affordability Calculator</button>
+    <button data-tab="pur">Purchase</button>
+    <button data-tab="ref">Refinance</button>
+    <button data-tab="rvb">Rent vs Buy</button>
+    <button data-tab="vap">VA Purchase</button>
+    <button data-tab="var">VA Refinance</button>
+    <button data-tab="dscr">Debt-Service (DSCR)</button>
+    <button data-tab="ff">Fix &amp; Flip</button>
+  </nav>
+
+  <!-- =========================================================
+       AFFORDABILITY
+  ========================================================== -->
+  <section class="panel on" data-panel="aff">
+    <div class="panel-grid-3">
+      <aside class="sidebar">
+        <h3>Affordability Calculator</h3>
+        <div class="sub-tabs" id="affSub">
+          <button data-prog="conv" class="on">Conventional</button>
+          <button data-prog="fha">FHA</button>
+          <button data-prog="va">VA</button>
+          <button data-prog="usda">USDA</button>
+          <button data-prog="jumbo">Jumbo</button>
+        </div>
+
+        <div class="row">
+          <div class="field"><label>Gross Income (Monthly)</label>
+            <div class="ctrl"><input type="number" id="aff_income" value="5000" /></div></div>
+          <div class="field"><label>Monthly Debts <span class="help">i</span></label>
+            <div class="ctrl"><input type="number" id="aff_debts" value="1500" /></div></div>
+        </div>
+
+        <div class="row">
+          <div class="field"><label>Home Price</label>
+            <div class="ctrl"><input type="number" id="aff_price" value="200000" /></div></div>
+          <div class="field"><label>Down Payment</label>
+            <div class="ctrl">
+              <input type="number" id="aff_down" value="0" />
+              <div class="toggle-mini" data-target="aff_down_mode">
+                <button data-mode="dollar" class="on">$</button>
+                <button data-mode="pct">%</button>
+              </div>
+            </div></div>
+        </div>
+
+        <div class="row">
+          <div class="field"><label>Loan Amount</label>
+            <div class="ctrl"><input type="number" id="aff_loan" value="200000" readonly /></div></div>
+          <div class="field"><label>Loan Term</label>
+            <div class="ctrl">
+              <input type="number" id="aff_term" value="30" />
+              <div class="toggle-mini" data-target="aff_term_unit">
+                <button data-mode="year" class="on">Year</button>
+                <button data-mode="month">Month</button>
+              </div>
+            </div></div>
+        </div>
+
+        <div class="row">
+          <div class="field"><label>Interest Rate</label>
+            <div class="ctrl"><input type="number" id="aff_rate" value="5" step="0.05" /></div></div>
+          <div class="field"><label>Credit Score</label>
+            <div class="ctrl"><select id="aff_credit">
+              <option>620-639</option><option>640-659</option><option>660-679</option>
+              <option>680-699</option><option>700-719</option><option>720-739</option><option>740-759</option><option>760+</option>
+            </select></div></div>
+        </div>
+
+        <div class="row">
+          <div class="field"><label>Prop Tax (Yearly)</label>
+            <div class="ctrl">
+              <input type="number" id="aff_tax" value="0.6" step="0.1" />
+              <div class="toggle-mini" data-target="aff_tax_mode">
+                <button data-mode="dollar">$</button>
+                <button data-mode="pct" class="on">%</button>
+              </div>
+            </div></div>
+          <div class="field"><label>Homeowners Insurance (Yearly)</label>
+            <div class="ctrl">
+              <input type="number" id="aff_ins" value="1200" />
+              <div class="toggle-mini" data-target="aff_ins_mode">
+                <button data-mode="dollar" class="on">$</button>
+                <button data-mode="pct">%</button>
+              </div>
+            </div></div>
+        </div>
+
+        <div class="row">
+          <div class="field"><label>PMI (Yearly)</label>
+            <div class="ctrl"><input type="number" id="aff_pmi" value="3000" /></div></div>
+          <div class="field"><label>HOA Dues (Monthly)</label>
+            <div class="ctrl"><input type="number" id="aff_hoa" value="0" /></div></div>
+        </div>
+
+        <button class="cta" style="background:var(--blue);color:#fff;">GET A QUOTE</button>
+      </aside>
+
+      <div>
+        <div class="card">
+          <h3>Payment Breakdown <span class="info">i</span></h3>
+          <div class="donut-row">
+            <div class="donut-box">
+              <canvas id="affDonut"></canvas>
+              <div class="donut-center">
+                <div><div class="v" id="aff_total_pmt">$0</div><div class="s">per month</div></div>
+              </div>
+            </div>
+            <div class="legend" id="aff_legend"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Loan Details</h3>
+          <div class="kv-grid">
+            <div class="kv"><div class="k">Home Value:</div><div class="v" id="aff_kv_home">$0</div></div>
+            <div class="kv"><div class="k">Mortgage Amount:</div><div class="v" id="aff_kv_mort">$0</div></div>
+            <div class="kv"><div class="k">Monthly Conventional Payment:</div><div class="v" id="aff_kv_pi">$0</div></div>
+            <div class="kv"><div class="k">Down Payment:</div><div class="v" id="aff_kv_dp">$0</div></div>
+            <div class="kv"><div class="k">Monthly Estimated PMI:</div><div class="v" id="aff_kv_pmi">$0</div></div>
+            <div class="kv"></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="stat-grid-2">
+          <div class="stat-card blue"><div class="lbl">Monthly Mortgage Payment</div><div class="val" id="aff_b_pmt">$0</div></div>
+          <div class="stat-card blue"><div class="lbl">Loan Amount</div><div class="val" id="aff_b_loan">$0</div></div>
+          <div class="stat-card blue"><div class="lbl">Your Debt to Income Ratio</div><div class="val" id="aff_b_dti">0%/0%</div></div>
+          <div class="stat-card blue"><div class="lbl">Allowable Debt to Income Ratio</div><div class="val" id="aff_b_dtimax">50%/50%</div></div>
+        </div>
+        <div class="slider-row">
+          <div class="top"><div>Purchase Price</div><div class="v" id="aff_sld_price_v">$0</div></div>
+          <input type="range" class="blue" id="aff_sld_price" min="50000" max="2000000" step="5000" value="200000" />
+        </div>
+        <div class="slider-row">
+          <div class="top"><div>Down Payment</div><div class="v" id="aff_sld_dp_v">$0</div></div>
+          <input type="range" class="blue" id="aff_sld_dp" min="0" max="500000" step="1000" value="0" />
+        </div>
+        <div class="summary-blue">
+          <div style="font-weight:800;margin-bottom:6px;">Summary:</div>
+          <span id="aff_summary"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       PURCHASE
+  ========================================================== -->
+  <section class="panel" data-panel="pur">
+    <div class="panel-grid">
+      <aside class="sidebar">
+        <h3>Purchase Calculator</h3>
+        <div class="field"><label>Home Value</label>
+          <div class="ctrl"><input type="number" id="pur_home" value="200000" /></div></div>
+        <div class="field"><label>Down Payment</label>
+          <div class="ctrl"><input type="number" id="pur_down" value="0" />
+            <div class="toggle-mini" data-target="pur_down_mode"><button data-mode="dollar" class="on">$</button><button data-mode="pct">%</button></div></div></div>
+        <div class="field"><label>Mortgage Amount</label>
+          <div class="ctrl"><input type="number" id="pur_loan" value="200000" readonly /></div></div>
+        <div class="field"><label>Loan Terms</label>
+          <div class="ctrl term-ctrl"><input type="number" id="pur_term" value="30" />
+            <div class="toggle-mini" data-target="pur_term_unit"><button data-mode="year" class="on">Year</button><button data-mode="month">Month</button></div></div></div>
+        <div class="field"><label>Interest Rate</label>
+          <div class="ctrl"><input type="number" id="pur_rate" value="5" step="0.05" /></div></div>
+        <div class="field"><label>PMI (Yearly)</label>
+          <div class="ctrl"><input type="number" id="pur_pmi" value="0" />
+            <div class="toggle-mini" data-target="pur_pmi_mode"><button data-mode="dollar" class="on">$</button><button data-mode="pct">%</button></div></div></div>
+        <div class="field"><label>Property Tax (Yearly)</label>
+          <div class="ctrl"><input type="number" id="pur_tax" value="1200" />
+            <div class="toggle-mini" data-target="pur_tax_mode"><button data-mode="dollar" class="on">$</button><button data-mode="pct">%</button></div></div></div>
+        <div class="field"><label>Homeowners Insurance (Yearly)</label>
+          <div class="ctrl"><input type="number" id="pur_ins" value="1200" />
+            <div class="toggle-mini" data-target="pur_ins_mode"><button data-mode="dollar" class="on">$</button><button data-mode="pct">%</button></div></div></div>
+        <div class="field"><label>HOA Dues (Monthly)</label>
+          <div class="ctrl"><input type="number" id="pur_hoa" value="0" /></div></div>
+        <button class="cta">GET A QUOTE</button>
+      </aside>
+
+      <div>
+        <div class="banner green">
+          <div class="b-item"><div class="lbl">All Payment</div><div class="val" id="pur_ban_all">$0</div></div>
+          <div class="b-item"><div class="lbl">Total Loan Amount</div><div class="val" id="pur_ban_loan">$0</div></div>
+          <div class="b-item"><div class="lbl">Total Interest Paid</div><div class="val" id="pur_ban_int">$0</div></div>
+        </div>
+        <div class="banner pink">
+          <div class="b-item"><div class="lbl">Savings</div><div class="val" id="pur_ban_save">$0</div></div>
+          <div class="b-item"><div class="lbl">Payment Amount</div><div class="val" id="pur_ban_pmt">$0</div></div>
+          <div class="b-item"><div class="lbl">Shorten Loan Term By</div><div class="val" id="pur_ban_short">-</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;">
+          <div>
+            <div class="card">
+              <h3>Payment Breakdown <span class="info">i</span></h3>
+              <div class="donut-row">
+                <div class="donut-box">
+                  <canvas id="purDonut"></canvas>
+                  <div class="donut-center"><div><div class="v" id="pur_total_pmt">$0</div><div class="s">per month</div></div></div>
+                </div>
+                <div class="legend" id="pur_legend"></div>
+              </div>
+              <div class="tabs-inline" id="purTabs">
+                <button data-view="month" class="on">Monthly Payment</button>
+                <button data-view="total">Total Payment</button>
+              </div>
+              <div class="kv-grid">
+                <div class="kv"><div class="k">Home Value:</div><div class="v" id="pur_kv_home">$0</div></div>
+                <div class="kv"><div class="k">Mortgage Amount:</div><div class="v" id="pur_kv_mort">$0</div></div>
+                <div class="kv"><div class="k">Monthly Principal &amp; Interest:</div><div class="v" id="pur_kv_pi">$0</div></div>
+                <div class="kv"><div class="k">Monthly Extra Payment:</div><div class="v" id="pur_kv_xtra">$0</div></div>
+                <div class="kv"><div class="k">Monthly Property Tax:</div><div class="v" id="pur_kv_tax">$0</div></div>
+                <div class="kv"><div class="k">Monthly Home Insurance:</div><div class="v" id="pur_kv_ins">$0</div></div>
+                <div class="kv"><div class="k">Monthly PMI <span id="pur_pmi_until" style="color:#9aa3b2;font-weight:400;"></span>:</div><div class="v" id="pur_kv_pmi">$0</div></div>
+                <div class="kv"><div class="k">Monthly HOA Fees:</div><div class="v" id="pur_kv_hoa">$0</div></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <h3>Early Payoff Strategy <span class="info">i</span></h3>
+              <div class="field"><label style="font-size:12px;color:var(--muted);">Additional Monthly</label>
+                <div class="ctrl" style="background:#fff;border:1px solid var(--line);"><input type="number" id="pur_extra" placeholder="You can add below $500.00" style="color:var(--ink)" /></div></div>
+              <div style="font-size:12px;color:var(--muted);margin:14px 0 8px;">Increase Frequency</div>
+              <div class="seg" id="pur_freq" style="background:#f1f5f9;">
+                <button data-freq="m" class="on" style="background:var(--green-soft-2);color:var(--green-dark);">Monthly</button>
+                <button data-freq="bw" style="color:#6b7280;">Bi weekly</button>
+                <button data-freq="w" style="color:#6b7280;">Weekly</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Lump Sum Payment <span class="info">i</span></h3>
+              <div class="field"><label style="font-size:12px;color:var(--muted);">Lump Sum Addition</label>
+                <div class="ctrl" style="background:#fff;border:1px solid var(--line);"><input type="number" id="pur_lump" placeholder="You can add below $100k" style="color:var(--ink)" /></div></div>
+              <div style="font-size:12px;color:var(--muted);margin:14px 0 8px;">Frequency</div>
+              <div class="seg" id="pur_lumpfreq" style="background:#f1f5f9;">
+                <button data-freq="once" class="on" style="background:var(--green-soft-2);color:var(--green-dark);">One time</button>
+                <button data-freq="yr" style="color:#6b7280;">Yearly</button>
+                <button data-freq="qtr" style="color:#6b7280;">Quarterly</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       REFINANCE
+  ========================================================== -->
+  <section class="panel" data-panel="ref">
+    <div class="panel-grid">
+      <aside class="sidebar">
+        <h3>Refinance Calculator</h3>
+        <div class="section-title" style="margin-top:0;">What is most important to you?</div>
+        <label class="radio on" style="margin-bottom:8px;"><input type="radio" name="ref_pri" value="low" checked /> Low Monthly Payment</label>
+        <label class="radio" style="margin-bottom:14px;"><input type="radio" name="ref_pri" value="int" /> Lower Interest Paid</label>
+
+        <div class="section-title">Current Loan</div>
+        <div class="field"><label>Original Loan Amount <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="ref_oloan" value="300000" /></div></div>
+        <div class="field"><label>Original Rate <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="ref_orate" value="5" step="0.05" /></div></div>
+        <div class="field"><label>Original Loan Term <span class="help">i</span></label>
+          <div class="ctrl term-ctrl"><input type="number" id="ref_oterm" value="30" />
+            <div class="toggle-mini" data-target="ref_oterm_unit"><button data-mode="year" class="on">Year</button><button data-mode="month">Month</button></div></div></div>
+        <div class="field"><label>Loan Start Date <span class="help">i</span></label>
+          <div class="ctrl"><input type="month" id="ref_ostart" value="2022-03" style="color-scheme:dark;" /></div></div>
+
+        <div class="section-title">New Loan</div>
+        <div class="field"><label>New Rate</label>
+          <div class="ctrl"><input type="number" id="ref_nrate" value="7" step="0.05" /></div></div>
+        <div class="field"><label>New Loan Term</label>
+          <div class="ctrl term-ctrl"><input type="number" id="ref_nterm" value="30" />
+            <div class="toggle-mini" data-target="ref_nterm_unit"><button data-mode="year" class="on">Year</button><button data-mode="month">Month</button></div></div></div>
+        <div class="field"><label>Current Loan Balance</label>
+          <div class="ctrl"><input type="number" id="ref_balance" value="280000" /></div></div>
+        <div class="field"><label>Refinance Costs</label>
+          <div class="ctrl"><input type="number" id="ref_costs" value="1000" /></div></div>
+
+        <button class="cta">GET A QUOTE</button>
+      </aside>
+
+      <div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="note-green" id="ref_msg" style="text-align:center;margin-bottom:0;">Your monthly payment will...</div>
+          <div class="note-green" id="ref_msg2" style="text-align:center;margin-bottom:0;">--</div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card green-strong"><div class="lbl">Monthly Payment Increase</div><div class="val"><span id="ref_diff_pmt">$0</span></div></div>
+          <div class="stat-card green"><div class="lbl">Total Interest Difference</div><div class="val" id="ref_diff_int">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Refinance Costs</div><div class="val" id="ref_cost_v">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Time to Recoup Fees</div><div class="val" id="ref_recoup">-</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <h3>Monthly Payment Comparison <span class="info">i</span></h3>
+            <div class="bar-row"><div class="bar-name">Current Loan</div><div class="bar-val" id="ref_cur_pmt">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-dark" id="ref_bar_cur" style="width:60%"></div></div>
+            <div class="bar-row"><div class="bar-name">New Loan</div><div class="bar-val" id="ref_new_pmt">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-pink" id="ref_bar_new" style="width:70%"></div></div>
+            <div class="bar-row"><div class="bar-name">Monthly Payment Difference</div><div class="bar-val" id="ref_d_pmt">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-pink" id="ref_bar_diff" style="width:8%"></div></div>
+          </div>
+          <div class="card">
+            <h3>Total Interest Comparison <span class="info">i</span></h3>
+            <div class="bar-row"><div class="bar-name">Current Loan Remaining Interest</div><div class="bar-val" id="ref_cur_int">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-dark" id="ref_bar_cint" style="width:90%"></div></div>
+            <div class="bar-row"><div class="bar-name">New Loan Interest</div><div class="bar-val" id="ref_new_int">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-greensoft" id="ref_bar_nint" style="width:30%"></div></div>
+            <div class="bar-row"><div class="bar-name">Total Interest Difference</div><div class="bar-val" id="ref_d_int">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-green" id="ref_bar_dint" style="width:60%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       RENT VS BUY
+  ========================================================== -->
+  <section class="panel" data-panel="rvb">
+    <div class="panel-grid-3">
+      <aside class="sidebar">
+        <h3>Rent vs Buy Calculator</h3>
+        <div class="section-title" style="margin-top:0;">Mortgage Information</div>
+        <div class="field"><label>Home Price <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="rvb_home" value="500000" /></div></div>
+        <div class="field"><label>Down Payment <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="rvb_down" value="50000" />
+            <div class="toggle-mini" data-target="rvb_down_mode"><button data-mode="dollar" class="on">$</button><button data-mode="pct">%</button></div></div></div>
+        <div class="field"><label>Loan Amount <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="rvb_loan" value="450000" readonly /></div></div>
+        <div class="field"><label>Interest Rate <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="rvb_rate" value="7.5" step="0.05" /></div></div>
+        <div class="field"><label>Loan Term <span class="help">i</span></label>
+          <div class="ctrl term-ctrl"><input type="number" id="rvb_term" value="30" />
+            <div class="toggle-mini" data-target="rvb_term_unit"><button data-mode="year" class="on">Year</button><button data-mode="month">Month</button></div></div></div>
+        <div class="field"><label>Start Date <span class="help">i</span></label>
+          <div class="ctrl"><input type="month" id="rvb_start" value="2026-05" style="color-scheme:dark;" /></div></div>
+
+        <div class="section-title">Rent Information</div>
+        <div class="field"><label>Monthly Rent</label>
+          <div class="ctrl"><input type="number" id="rvb_rent" value="2000" /></div></div>
+        <div class="field"><label>Annual Rent Increase (%)</label>
+          <div class="ctrl"><input type="number" id="rvb_rentup" value="3" step="0.1" /></div></div>
+        <div class="field"><label>Home Appreciation (%)</label>
+          <div class="ctrl"><input type="number" id="rvb_appr" value="4" step="0.1" /></div></div>
+        <div class="field"><label>Selling Cost (%)</label>
+          <div class="ctrl"><input type="number" id="rvb_sell" value="6" step="0.5" /></div></div>
+
+        <button class="cta">GET A QUOTE</button>
+      </aside>
+
+      <div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;color:var(--ink-soft);">
+            <div>Years</div><div><b id="rvb_yrs_v">8</b> years</div>
+          </div>
+          <input type="range" id="rvb_yrs" min="1" max="30" value="8" style="width:100%;" />
+        </div>
+        <div class="card">
+          <h3>Results Summary <span class="info">i</span></h3>
+          <table class="compare-table" id="rvb_table">
+            <thead><tr><th></th><th>Buying</th><th>Renting</th></tr></thead>
+            <tbody>
+              <tr><td>Cash Spent</td><td id="rvb_cash_b">$0</td><td id="rvb_cash_r">$0</td></tr>
+              <tr><td>Home value</td><td id="rvb_hv">$0</td><td>—</td></tr>
+              <tr><td>Balance on Loan</td><td id="rvb_bal">$0</td><td>—</td></tr>
+              <tr><td>Closing costs on sale</td><td id="rvb_close">$0</td><td>—</td></tr>
+              <tr><td>Adjusted Net Cash Savings</td><td id="rvb_adj_b" style="color:var(--green-dark);font-weight:700;">$0</td><td id="rvb_adj_r" style="color:var(--green-dark);font-weight:700;">$0</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:18px;">
+            <div class="bar-row"><div class="bar-name">Rent</div><div class="bar-val" id="rvb_bar_rent_v">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-dark" id="rvb_bar_rent" style="width:80%"></div></div>
+            <div class="bar-row"><div class="bar-name">Buy</div><div class="bar-val" id="rvb_bar_buy_v">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-green" id="rvb_bar_buy" style="width:60%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="stat-grid-2">
+          <div class="stat-card green"><div class="lbl">YEAR</div><div class="val" id="rvb_yr_card">8</div></div>
+          <div class="stat-card green"><div class="lbl">BUY GAIN</div><div class="val" id="rvb_gain_card">$0</div></div>
+          <div class="stat-card green"><div class="lbl">BUY</div><div class="val" id="rvb_buy_card">$0</div></div>
+          <div class="stat-card green"><div class="lbl">RENT</div><div class="val" id="rvb_rent_card">$0</div></div>
+        </div>
+        <div class="note-pink"><span class="ttl">Out of Pocket Cost:</span><span id="rvb_oop"></span></div>
+        <div class="note-pink"><span class="ttl">Financial Gain:</span><span id="rvb_fg"></span></div>
+        <div class="note-pink"><span class="ttl">Summary:</span><span id="rvb_sum"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       VA PURCHASE
+  ========================================================== -->
+  <section class="panel" data-panel="vap">
+    <div class="panel-grid">
+      <aside class="sidebar">
+        <h3>VA Purchase Calculator</h3>
+        <div class="field"><label>Home Value</label>
+          <div class="ctrl"><input type="number" id="vap_home" value="200000" /></div></div>
+        <div class="field"><label>Down Payment</label>
+          <div class="ctrl"><input type="number" id="vap_down" value="0" />
+            <div class="toggle-mini" data-target="vap_down_mode"><button data-mode="dollar" class="on">$</button><button data-mode="pct">%</button></div></div></div>
+        <div class="field"><label>Base Mortgage Amount</label>
+          <div class="ctrl"><input type="number" id="vap_loan" value="200000" readonly /></div></div>
+        <div class="field"><label>Loan Terms</label>
+          <div class="ctrl term-ctrl"><input type="number" id="vap_term" value="30" />
+            <div class="toggle-mini" data-target="vap_term_unit"><button data-mode="year" class="on">Year</button><button data-mode="month">Month</button></div></div></div>
+        <div class="field"><label>Payment Frequency</label>
+          <div class="ctrl"><select id="vap_freq"><option value="m">Monthly</option><option value="bw">Bi-weekly</option></select></div></div>
+        <div class="field"><label>Interest Rate</label>
+          <div class="ctrl"><input type="number" id="vap_rate" value="5" step="0.05" /></div></div>
+        <div class="field"><label>This is my...</label>
+          <div class="ctrl"><select id="vap_use">
+            <option value="first">First-time use</option>
+            <option value="repeat">Subsequent use</option>
+            <option value="exempt">Exempt</option>
+          </select></div></div>
+        <div class="field"><label>Property Tax (Yearly)</label>
+          <div class="ctrl"><input type="number" id="vap_tax" value="1200" /></div></div>
+        <div class="field"><label>Homeowners Insurance (Yearly)</label>
+          <div class="ctrl"><input type="number" id="vap_ins" value="1200" /></div></div>
+        <div class="field"><label>HOA Dues (Monthly)</label>
+          <div class="ctrl"><input type="number" id="vap_hoa" value="0" /></div></div>
+        <button class="cta">GET A QUOTE</button>
+      </aside>
+      <div>
+        <div class="banner green">
+          <div class="b-item"><div class="lbl">All Payment</div><div class="val" id="vap_ban_all">$0</div></div>
+          <div class="b-item"><div class="lbl">Total Loan Amount</div><div class="val" id="vap_ban_loan">$0</div></div>
+          <div class="b-item"><div class="lbl">Total Interest Paid</div><div class="val" id="vap_ban_int">$0</div></div>
+        </div>
+        <div class="banner pink">
+          <div class="b-item"><div class="lbl">Savings</div><div class="val" id="vap_ban_save">$0</div></div>
+          <div class="b-item"><div class="lbl">Payment Amount</div><div class="val" id="vap_ban_pmt">$0</div></div>
+          <div class="b-item"><div class="lbl">Shorten Loan Term By</div><div class="val" id="vap_ban_short">-</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;">
+          <div class="card">
+            <h3>Payment Breakdown <span class="info">i</span></h3>
+            <div class="donut-row">
+              <div class="donut-box">
+                <canvas id="vapDonut"></canvas>
+                <div class="donut-center"><div><div class="v" id="vap_total_pmt">$0</div><div class="s">per month</div></div></div>
+              </div>
+              <div class="legend" id="vap_legend"></div>
+            </div>
+            <div class="tabs-inline" style="margin-top:12px;">
+              <button class="on">Monthly Payment</button>
+              <button>Total Payment</button>
+            </div>
+            <div class="kv-grid">
+              <div class="kv"><div class="k">Home Value:</div><div class="v" id="vap_kv_home">$0</div></div>
+              <div class="kv"><div class="k">Mortgage Amount:</div><div class="v" id="vap_kv_mort">$0</div></div>
+              <div class="kv"><div class="k">Monthly Principal &amp; Interest:</div><div class="v" id="vap_kv_pi">$0</div></div>
+              <div class="kv"><div class="k">Monthly Extra Payment:</div><div class="v">$0.00</div></div>
+              <div class="kv"><div class="k">Monthly Property Tax:</div><div class="v" id="vap_kv_tax">$0</div></div>
+              <div class="kv"><div class="k">Monthly Home Insurance:</div><div class="v" id="vap_kv_ins">$0</div></div>
+              <div class="kv"><div class="k">Monthly HOA Fees:</div><div class="v" id="vap_kv_hoa">$0</div></div>
+              <div class="kv"><div class="k">VA Funding Fee:</div><div class="v" id="vap_kv_ff">$0</div></div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <h3>Early Payoff Strategy <span class="info">i</span></h3>
+              <div class="field"><label style="font-size:12px;color:var(--muted);">Additional Monthly</label>
+                <div class="ctrl" style="background:#fff;border:1px solid var(--line);"><input type="number" id="vap_extra" placeholder="You can add below $500.00" style="color:var(--ink)" /></div></div>
+              <div style="font-size:12px;color:var(--muted);margin:14px 0 8px;">Increase Frequency</div>
+              <div class="seg" style="background:#f1f5f9;">
+                <button class="on" style="background:var(--green-soft-2);color:var(--green-dark);">Monthly</button>
+                <button style="color:#6b7280;">Bi weekly</button>
+                <button style="color:#6b7280;">Weekly</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Lump Sum Payment <span class="info">i</span></h3>
+              <div class="field"><label style="font-size:12px;color:var(--muted);">Lump Sum Addition</label>
+                <div class="ctrl" style="background:#fff;border:1px solid var(--line);"><input type="number" id="vap_lump" placeholder="You can add below $100k" style="color:var(--ink)" /></div></div>
+              <div style="font-size:12px;color:var(--muted);margin:14px 0 8px;">Frequency</div>
+              <div class="seg" style="background:#f1f5f9;">
+                <button class="on" style="background:var(--green-soft-2);color:var(--green-dark);">One time</button>
+                <button style="color:#6b7280;">Yearly</button>
+                <button style="color:#6b7280;">Quarterly</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       VA REFINANCE
+  ========================================================== -->
+  <section class="panel" data-panel="var">
+    <div class="panel-grid">
+      <aside class="sidebar">
+        <h3>VA Refinance Calculator</h3>
+        <div class="section-title" style="margin-top:0;">What is most important to you?</div>
+        <label class="radio on" style="margin-bottom:8px;"><input type="radio" name="var_pri" value="low" checked /> Low Monthly Payment</label>
+        <label class="radio" style="margin-bottom:14px;"><input type="radio" name="var_pri" value="int" /> Lower Interest Paid</label>
+        <div class="section-title">Current Loan</div>
+        <div class="field"><label>Original Loan Amount <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="var_oloan" value="300000" /></div></div>
+        <div class="field"><label>Original Rate <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="var_orate" value="5" step="0.05" /></div></div>
+        <div class="field"><label>Original Loan Term <span class="help">i</span></label>
+          <div class="ctrl term-ctrl"><input type="number" id="var_oterm" value="30" />
+            <div class="toggle-mini" data-target="var_oterm_unit"><button data-mode="year" class="on">Year</button><button data-mode="month">Month</button></div></div></div>
+        <div class="field"><label>Loan Start Date <span class="help">i</span></label>
+          <div class="ctrl"><input type="month" id="var_ostart" value="2022-03" style="color-scheme:dark;" /></div></div>
+        <div class="section-title">New Loan</div>
+        <div class="field"><label>New Rate</label>
+          <div class="ctrl"><input type="number" id="var_nrate" value="7" step="0.05" /></div></div>
+        <div class="field"><label>New Loan Term</label>
+          <div class="ctrl term-ctrl"><input type="number" id="var_nterm" value="30" />
+            <div class="toggle-mini" data-target="var_nterm_unit"><button data-mode="year" class="on">Year</button><button data-mode="month">Month</button></div></div></div>
+        <div class="field"><label>Current Loan Balance</label>
+          <div class="ctrl"><input type="number" id="var_balance" value="280000" /></div></div>
+        <div class="field"><label>Refinance Costs</label>
+          <div class="ctrl"><input type="number" id="var_costs" value="844" /></div></div>
+        <button class="cta">GET A QUOTE</button>
+      </aside>
+      <div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="note-green" id="var_msg" style="text-align:center;margin-bottom:0;">Your monthly payment will...</div>
+          <div class="note-green" style="text-align:center;margin-bottom:0;">--</div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card green-strong"><div class="lbl">Monthly Payment Increase</div><div class="val" id="var_diff_pmt">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Total Interest Difference</div><div class="val" id="var_diff_int">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Refinance Costs</div><div class="val" id="var_cost_v">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Time to Recoup Fees</div><div class="val" id="var_recoup">-</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <h3>Monthly Payment Comparison <span class="info">i</span></h3>
+            <div class="bar-row"><div class="bar-name">Current Loan</div><div class="bar-val" id="var_cur_pmt">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-dark" id="var_bar_cur" style="width:60%"></div></div>
+            <div class="bar-row"><div class="bar-name">New Loan</div><div class="bar-val" id="var_new_pmt">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-pink" id="var_bar_new" style="width:70%"></div></div>
+            <div class="bar-row"><div class="bar-name">Monthly Payment Difference</div><div class="bar-val" id="var_d_pmt">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-pink" id="var_bar_diff" style="width:10%"></div></div>
+          </div>
+          <div class="card">
+            <h3>Total Interest Comparison <span class="info">i</span></h3>
+            <div class="bar-row"><div class="bar-name">Current Loan Remaining Interest</div><div class="bar-val" id="var_cur_int">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-dark" id="var_bar_cint" style="width:90%"></div></div>
+            <div class="bar-row"><div class="bar-name">New Loan Interest</div><div class="bar-val" id="var_new_int">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-greensoft" id="var_bar_nint" style="width:30%"></div></div>
+            <div class="bar-row"><div class="bar-name">Total Interest Difference</div><div class="bar-val" id="var_d_int">$0</div></div>
+            <div class="bar-track"><div class="bar-fill bar-green" id="var_bar_dint" style="width:60%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       DSCR
+  ========================================================== -->
+  <section class="panel" data-panel="dscr">
+    <div class="panel-grid">
+      <aside class="sidebar">
+        <h3>Debt-Service (DSCR)</h3>
+        <div class="field"><label>Number of Units</label>
+          <div class="ctrl"><select id="dscr_units"><option>1</option><option>2</option><option>3</option><option>4</option></select></div></div>
+        <div class="field"><label>Purchase or Refinance</label>
+          <div class="seg" id="dscr_pr"><button data-mode="purchase" class="on">Purchase</button><button data-mode="refinance">Refinance</button></div></div>
+        <div class="field"><label>Property Value or Purchase Price <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="dscr_price" value="500000" /></div></div>
+        <div class="field"><label>Unit 1 Monthly Rent <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="dscr_rent1" value="2500" /></div></div>
+        <div class="field"><label>Annual Property Taxes</label>
+          <div class="ctrl"><input type="number" id="dscr_tax" value="4000" /></div></div>
+        <div class="field"><label>Annual Insurance <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="dscr_ins" value="3000" /></div></div>
+        <div class="field"><label>Monthly HOA Fee <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="dscr_hoa" value="0" /></div></div>
+        <div class="field"><label>Vacancy Rate</label>
+          <div class="ctrl"><select id="dscr_vac">
+            <option value="3">3%</option><option value="5" selected>5%</option><option value="7">7%</option>
+            <option value="10">10%</option><option value="15">15%</option><option value="20">20%</option>
+          </select></div></div>
+        <div class="field"><label>Annual Repairs &amp; Maintenance</label>
+          <div class="ctrl"><select id="dscr_repair">
+            <option value="300">$300.00</option><option value="500" selected>$500.00</option>
+            <option value="750">$750.00</option><option value="1000">$1000.00</option>
+          </select></div></div>
+        <div class="field"><label>Annual Utilities <span class="help">i</span></label>
+          <div class="ctrl"><input type="number" id="dscr_util" value="5000" /></div></div>
+        <div class="field"><label>Loan to Value</label>
+          <div class="ctrl"><select id="dscr_ltv">
+            <option value="0">0%</option><option value="60">60%</option><option value="70">70%</option><option value="80" selected>80%</option>
+          </select></div></div>
+        <div class="field"><label>Interest Rate</label>
+          <div class="ctrl"><input type="number" id="dscr_rate" value="7" step="0.05" /></div></div>
+        <div class="field"><label>Origination Fee</label>
+          <div class="ctrl"><select id="dscr_orig">
+            <option value="0">0%</option><option value="1">1%</option><option value="2" selected>2%</option><option value="3">3%</option>
+          </select></div></div>
+        <button class="cta">GET A QUOTE</button>
+      </aside>
+      <div>
+        <div class="stat-grid">
+          <div class="stat-card pink-strong"><div class="lbl">Cash Flow</div><div class="val" id="dscr_cf">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Cap Rate</div><div class="val" id="dscr_cap">0%</div></div>
+          <div class="stat-card pink-strong"><div class="lbl">Cash on Cash Return</div><div class="val" id="dscr_coc">0%</div></div>
+          <div class="stat-card green-strong"><div class="lbl">DSCR</div><div class="val" id="dscr_d">0.00</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div class="card">
+              <h3>Deal Breakdown <span class="info">i</span></h3>
+              <div class="kv-grid">
+                <div class="kv"><div class="k">Loan Amount:</div><div class="v" id="dscr_kv_loan">$0</div></div>
+                <div class="kv"><div class="k">Down Payment:</div><div class="v" id="dscr_kv_dp">$0</div></div>
+                <div class="kv"><div class="k">Mortgage Payment:</div><div class="v" id="dscr_kv_mp">$0</div></div>
+                <div class="kv"><div class="k">Monthly Payment:</div><div class="v" id="dscr_kv_total">$0</div></div>
+                <div class="kv"><div class="k">Origination Fee Amount:</div><div class="v" id="dscr_kv_of">$0</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Deal Metrics <span class="info">i</span></h3>
+              <div class="kv-grid">
+                <div class="kv"><div class="k">Total Closing Costs:</div><div class="v" id="dscr_m_cc">$0</div></div>
+                <div class="kv"><div class="k">Cash Needed to Close:</div><div class="v" id="dscr_m_close">$0</div></div>
+                <div class="kv"><div class="k">Price Per Unit:</div><div class="v" id="dscr_m_unit">$0</div></div>
+                <div class="kv"><div class="k">Gross Rental Income:</div><div class="v" id="dscr_m_gri">$0</div></div>
+                <div class="kv"><div class="k">Operating Expenses:</div><div class="v" id="dscr_m_oe">$0</div></div>
+                <div class="kv"><div class="k">Net Operating Income:</div><div class="v" id="dscr_m_noi">$0</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Return Metrics <span class="info">i</span></h3>
+            <div class="kv-grid" style="grid-template-columns:1fr;gap:14px;">
+              <div class="kv" style="display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:10px;"><div class="k">Cash Flow:</div><div class="v" id="dscr_r_cf">$0</div></div>
+              <div class="kv" style="display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:10px;"><div class="k">Cap Rate:</div><div class="v" id="dscr_r_cap">0%</div></div>
+              <div class="kv" style="display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:10px;"><div class="k">Cash on Cash Return:</div><div class="v" id="dscr_r_coc">0%</div></div>
+              <div class="kv" style="display:flex;justify-content:space-between;"><div class="k">DSCR:</div><div class="v" id="dscr_r_d">0.00</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       FIX & FLIP
+  ========================================================== -->
+  <section class="panel" data-panel="ff">
+    <div class="panel-grid">
+      <aside class="sidebar">
+        <h3>Fix &amp; Flip Calculator</h3>
+        <div class="row">
+          <div class="field"><label>Purchase Price</label>
+            <div class="ctrl"><input type="number" id="ff_price" value="500000" /></div></div>
+          <div class="field"><label>Renovation Cost</label>
+            <div class="ctrl"><input type="number" id="ff_reno" value="75000" /></div></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>After Repaired Value</label>
+            <div class="ctrl"><input type="number" id="ff_arv" value="750000" /></div></div>
+          <div class="field"><label>Length of Loan</label>
+            <div class="ctrl"><select id="ff_len">
+              <option value="3">3 Months</option><option value="6">6 Months</option><option value="9" selected>9 Months</option>
+              <option value="12">12 Months</option><option value="18">18 Months</option>
+            </select></div></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Annual Property Taxes</label>
+            <div class="ctrl"><input type="number" id="ff_tax" value="4000" /></div></div>
+          <div class="field"><label>Annual Insurance</label>
+            <div class="ctrl"><input type="number" id="ff_ins" value="3000" /></div></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Purchase Price LTV</label>
+            <div class="ctrl"><select id="ff_ltv">
+              <option value="65">65%</option><option value="70">70%</option><option value="75">75%</option>
+              <option value="80" selected>80%</option><option value="85">85%</option><option value="90">90%</option>
+            </select></div></div>
+          <div class="field"><label>Interest Rate</label>
+            <div class="ctrl"><input type="number" id="ff_rate" value="10" step="0.05" /></div></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Origination Fee</label>
+            <div class="ctrl"><select id="ff_orig">
+              <option value="2" selected>2.00%</option><option value="2.5">2.50%</option><option value="3">3.00%</option>
+            </select></div></div>
+          <div class="field"><label>Other Closing Costs</label>
+            <div class="ctrl"><select id="ff_close">
+              <option value="2">2.0%</option><option value="3" selected>3.0%</option><option value="4">4.0%</option>
+            </select></div></div>
+        </div>
+        <div class="field"><label>Cost To Sell</label>
+          <div class="ctrl"><select id="ff_sell">
+            <option value="1">1%</option><option value="3">3%</option><option value="5" selected>5%</option><option value="7">7%</option>
+          </select></div></div>
+        <button class="cta">GET A QUOTE</button>
+      </aside>
+      <div>
+        <div class="stat-grid">
+          <div class="stat-card green-strong"><div class="lbl">Borrower Equity Needed</div><div class="val" id="ff_beq">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Net Profit</div><div class="val" id="ff_np">$0</div></div>
+          <div class="stat-card green"><div class="lbl">Return on Investment</div><div class="val" id="ff_roi">0%</div></div>
+          <div class="stat-card green"><div class="lbl">Loan to After Repaired Value</div><div class="val" id="ff_ltarv">0%</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div class="card">
+              <h3>Deal Breakdown <span class="info">i</span></h3>
+              <div class="kv-grid">
+                <div class="kv"><div class="k">Loan Amount:</div><div class="v" id="ff_kv_loan">$0</div></div>
+                <div class="kv"><div class="k">Down Payment:</div><div class="v" id="ff_kv_dp">$0</div></div>
+                <div class="kv"><div class="k">Monthly Interest Payment:</div><div class="v" id="ff_kv_mip">$0</div></div>
+                <div class="kv"><div class="k">Total Interest Over Term:</div><div class="v" id="ff_kv_ti">$0</div></div>
+                <div class="kv"><div class="k">Origination Fee Amount:</div><div class="v" id="ff_kv_of">$0</div></div>
+                <div class="kv"><div class="k">Other Closing Costs Amount:</div><div class="v" id="ff_kv_oc">$0</div></div>
+                <div class="kv"><div class="k">Cost To Sell Amount:</div><div class="v" id="ff_kv_cs">$0</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Deal Metrics <span class="info">i</span></h3>
+              <div class="kv-grid">
+                <div class="kv"><div class="k">Closing Costs:</div><div class="v" id="ff_m_cc">$0</div></div>
+                <div class="kv"><div class="k">Carrying Costs:</div><div class="v" id="ff_m_carry">$0</div></div>
+                <div class="kv"><div class="k">Borrower Equity Needed:</div><div class="v" id="ff_m_beq">$0</div></div>
+                <div class="kv"><div class="k">Total Cash in Deal:</div><div class="v" id="ff_m_total">$0</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Return Metrics <span class="info">i</span></h3>
+            <div class="kv-grid" style="grid-template-columns:1fr;gap:14px;">
+              <div class="kv" style="display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:10px;"><div class="k">Net Profit:</div><div class="v" id="ff_r_np">$0</div></div>
+              <div class="kv" style="display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:10px;"><div class="k">ROI:</div><div class="v" id="ff_r_roi">0%</div></div>
+              <div class="kv" style="display:flex;justify-content:space-between;"><div class="k">Loan to After Repaired Value:</div><div class="v" id="ff_r_lt">0%</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="disclaimer">
+    <b>Disclaimer:</b> Results from these calculators are designed for comparative purposes only, and accuracy is not guaranteed.
+    Please verify all rates, fees, taxes, and insurance figures with a licensed loan consultant before making financial decisions.
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   Helpers
+========================================================= */
+const fmt0 = n => "$" + Math.round(n).toLocaleString("en-US");
+const fmt2 = n => "$" + (+n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct = n => (n*100).toFixed(2)+"%";
+const $ = id => document.getElementById(id);
+const num = id => +$(id).value || 0;
+
+function pmt(principal, annualRate, n) {
+  const r = annualRate/100/12;
+  if (r === 0) return principal/n;
+  return principal * (r*Math.pow(1+r,n)) / (Math.pow(1+r,n)-1);
+}
+
+function totalInterest(principal, annualRate, n) {
+  return pmt(principal, annualRate, n) * n - principal;
+}
+
+// Generic toggle-mini handler — stores chosen mode on a hidden attr
+const modes = {};
+document.querySelectorAll(".toggle-mini").forEach(g => {
+  const target = g.dataset.target;
+  modes[target] = g.querySelector("button.on").dataset.mode;
+  g.querySelectorAll("button").forEach(b => {
+    b.addEventListener("click", () => {
+      g.querySelectorAll("button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      modes[target] = b.dataset.mode;
+      recalcAll();
+    });
+  });
+});
+
+// segmented controls
+document.querySelectorAll(".seg").forEach(g=>{
+  g.querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      g.querySelectorAll("button").forEach(x=>{x.classList.remove("on");x.style.background="";x.style.color="";});
+      b.classList.add("on");
+      // restore "on" green style for the freq toggles in cards
+      if (g.id==="pur_freq"||g.id==="pur_lumpfreq"){b.style.background="var(--green-soft-2)";b.style.color="var(--green-dark)";}
+      recalcAll();
+    });
+  });
+});
+
+// radio cards (Refinance priority)
+document.querySelectorAll(".radio").forEach(r=>{
+  const input = r.querySelector("input");
+  input.addEventListener("change",()=>{
+    document.querySelectorAll(`input[name="${input.name}"]`).forEach(i=>{
+      i.closest(".radio").classList.toggle("on", i.checked);
+    });
+    recalcAll();
+  });
+});
+
+/* =========================================================
+   Tabs (main + affordability sub)
+========================================================= */
+document.querySelectorAll("#mainTabs button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("#mainTabs button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    document.querySelectorAll(".panel").forEach(p=>p.classList.remove("on"));
+    document.querySelector(`.panel[data-panel="${b.dataset.tab}"]`).classList.add("on");
+  });
+});
+
+let affProg = "conv";
+document.querySelectorAll("#affSub button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("#affSub button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    affProg = b.dataset.prog;
+    affCalc();
+  });
+});
+
+/* =========================================================
+   Inputs -> recalc
+========================================================= */
+document.querySelectorAll("input,select").forEach(el=>{
+  el.addEventListener("input",recalcAll);
+  el.addEventListener("change",recalcAll);
+});
+
+function recalcAll(){
+  affCalc(); purCalc(); refCalc(); rvbCalc(); vapCalc(); varCalc(); dscrCalc(); ffCalc();
+}
+
+/* =========================================================
+   Donut helper
+========================================================= */
+const donuts = {};
+function makeDonut(canvasId, legendId, parts){
+  const labels = parts.map(p=>p.name);
+  const data = parts.map(p=>p.v);
+  const colors = parts.map(p=>p.c);
+  if (donuts[canvasId]){
+    donuts[canvasId].data.datasets[0].data = data;
+    donuts[canvasId].update();
+  } else {
+    donuts[canvasId] = new Chart($(canvasId),{
+      type:"doughnut",
+      data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0}]},
+      options:{maintainAspectRatio:false,cutout:"68%",plugins:{legend:{display:false}}}
+    });
+  }
+  const leg = $(legendId);
+  leg.innerHTML = "";
+  parts.forEach(p=>{
+    const row = document.createElement("div");
+    row.className="li";
+    row.innerHTML = `<div class="dot" style="background:${p.c}"></div><div class="nm">${p.name}</div><div class="v">(${fmt2(p.v)})</div>`;
+    leg.appendChild(row);
+  });
+}
+
+/* =========================================================
+   AFFORDABILITY
+========================================================= */
+let affSliderDragging = null;
+function affCalc(){
+  const home = num("aff_price");
+  const downRaw = num("aff_down");
+  const down = modes.aff_down_mode==="pct" ? home*downRaw/100 : downRaw;
+  $("aff_loan").value = Math.max(0, Math.round(home-down));
+  const loan = +$("aff_loan").value;
+  const term = num("aff_term") * (modes.aff_term_unit==="year"?12:1);
+  const rate = num("aff_rate");
+  const pi = pmt(loan, rate, term);
+
+  const tax = modes.aff_tax_mode==="pct" ? home*num("aff_tax")/100 : num("aff_tax");
+  const ins = modes.aff_ins_mode==="pct" ? home*num("aff_ins")/100 : num("aff_ins");
+  const pmiYearly = num("aff_pmi");
+  const hoa = num("aff_hoa");
+  const taxM = tax/12, insM = ins/12, pmiM = pmiYearly/12;
+  const total = pi + taxM + insM + pmiM + hoa;
+
+  $("aff_total_pmt").textContent = fmt2(total);
+  $("aff_kv_home").textContent = fmt2(home);
+  $("aff_kv_mort").textContent = fmt2(loan);
+  $("aff_kv_pi").textContent = fmt2(pi);
+  $("aff_kv_dp").textContent = fmt2(down);
+  $("aff_kv_pmi").textContent = fmt2(pmiM);
+  $("aff_b_pmt").textContent = fmt2(total);
+  $("aff_b_loan").textContent = fmt2(loan);
+
+  // DTI
+  const income = num("aff_income"), debts = num("aff_debts");
+  const frontDTI = income>0 ? total/income*100 : 0;
+  const backDTI  = income>0 ? (total+debts)/income*100 : 0;
+  $("aff_b_dti").textContent = frontDTI.toFixed(2)+"%/" + backDTI.toFixed(2)+"%";
+
+  const maxDTI = {conv:"50%/50%",fha:"31%/43%",va:"41%/41%",usda:"29%/41%",jumbo:"43%/43%"}[affProg];
+  $("aff_b_dtimax").textContent = maxDTI;
+
+  makeDonut("affDonut","aff_legend",[
+    {name:"Principal & Interest",v:pi,c:"var(--pi)"},
+    {name:"Taxes",v:taxM,c:"var(--tax)"},
+    {name:"Insurance",v:insM,c:"var(--ins)"},
+    {name:"HOA Dues",v:hoa,c:"var(--hoa)"},
+    {name:"PMI",v:pmiM,c:"var(--pmi)"},
+  ]);
+
+  // sliders mirror inputs bidirectionally without interrupting active mouse drag
+  if (typeof syncAffSliderRanges === "function") syncAffSliderRanges();
+
+  const progName = {conv:"Conventional Loan",fha:"FHA Loan",va:"VA Loan",usda:"USDA Loan",jumbo:"Jumbo Loan"}[affProg];
+  $("aff_summary").innerHTML =
+    `Based on what you input into today your Total Payment would be <b class="hl">${fmt2(total)}</b> on a <b class="hl">${progName}</b> with a <b class="hl">${(home>0?(down/home*100).toFixed(2):0)}% Down Payment</b>. Your <b class="hl">Debt-to-Income Ratio is ${frontDTI.toFixed(2)}%/${backDTI.toFixed(2)}%</b> and the <b class="hl">maximum allowable on this program type is ${maxDTI}</b>. Please confirm all these numbers for accuracy with your loan officer. The Monthly Debts Calculation is often where we see errors.`;
+}
+
+function syncAffSliderRanges(){
+  const home = Math.max(0, num("aff_price"));
+  const downRaw = Math.max(0, num("aff_down"));
+  const downDollar = modes.aff_down_mode==="pct" ? home*downRaw/100 : downRaw;
+
+  $("aff_sld_price").max = Math.max(2000000, Math.ceil(home / 5000) * 5000);
+  $("aff_sld_dp").max = Math.max(500000, Math.ceil(home / 1000) * 1000);
+
+  if (affSliderDragging !== "price") $("aff_sld_price").value = home;
+  if (affSliderDragging !== "down") $("aff_sld_dp").value = downDollar;
+
+  $("aff_sld_price_v").textContent = fmt0(home);
+  $("aff_sld_dp_v").textContent = fmt0(downDollar);
+}
+
+["aff_price","aff_down"].forEach(id=>{
+  $(id).addEventListener("input",()=>{
+    affSliderDragging = null;
+    syncAffSliderRanges();
+    affCalc();
+  });
+});
+
+$("aff_sld_price").addEventListener("pointerdown",()=>{ affSliderDragging = "price"; });
+$("aff_sld_price").addEventListener("pointerup",()=>{ affSliderDragging = null; syncAffSliderRanges(); affCalc(); });
+$("aff_sld_price").addEventListener("change",()=>{ affSliderDragging = null; syncAffSliderRanges(); affCalc(); });
+$("aff_sld_price").addEventListener("input",e=>{
+  affSliderDragging = "price";
+  $("aff_price").value=e.target.value;
+  $("aff_sld_price_v").textContent = fmt0(+e.target.value);
+  affCalc();
+});
+
+$("aff_sld_dp").addEventListener("pointerdown",()=>{ affSliderDragging = "down"; });
+$("aff_sld_dp").addEventListener("pointerup",()=>{ affSliderDragging = null; syncAffSliderRanges(); affCalc(); });
+$("aff_sld_dp").addEventListener("change",()=>{ affSliderDragging = null; syncAffSliderRanges(); affCalc(); });
+$("aff_sld_dp").addEventListener("input",e=>{
+  affSliderDragging = "down";
+  modes.aff_down_mode="dollar";
+  document.querySelectorAll('[data-target="aff_down_mode"] button').forEach(b=>b.classList.toggle("on",b.dataset.mode==="dollar"));
+  $("aff_down").value=e.target.value;
+  $("aff_sld_dp_v").textContent = fmt0(+e.target.value);
+  affCalc();
+});
+
+/* =========================================================
+   PURCHASE
+========================================================= */
+function purCalc(){
+  const home = num("pur_home");
+  const downRaw = num("pur_down");
+  const down = modes.pur_down_mode==="pct" ? home*downRaw/100 : downRaw;
+  $("pur_loan").value = Math.max(0,Math.round(home-down));
+  const loan = +$("pur_loan").value;
+  const term = num("pur_term") * (modes.pur_term_unit==="year"?12:1);
+  const rate = num("pur_rate");
+  const pi = pmt(loan, rate, term);
+  const tax = modes.pur_tax_mode==="pct" ? home*num("pur_tax")/100 : num("pur_tax");
+  const ins = modes.pur_ins_mode==="pct" ? home*num("pur_ins")/100 : num("pur_ins");
+  const pmiY = modes.pur_pmi_mode==="pct" ? loan*num("pur_pmi")/100 : num("pur_pmi");
+  const hoa = num("pur_hoa");
+  const taxM=tax/12, insM=ins/12, pmiM=pmiY/12;
+  const extra = num("pur_extra"), lump = num("pur_lump");
+  const total = pi + taxM + insM + pmiM + hoa + extra;
+  const totalInt = totalInterest(loan, rate, term);
+
+  // simulate extra/lump effect on payoff
+  let monthsSaved = 0, savedInt = 0;
+  if (extra>0 || lump>0){
+    const sim = simulatePayoff(loan, rate, term, pi, extra, lump);
+    monthsSaved = term - sim.months;
+    savedInt = totalInt - sim.interest;
+  }
+
+  $("pur_total_pmt").textContent = fmt2(total);
+  $("pur_ban_all").textContent = fmt2(loan + totalInt + (tax+ins+pmiY+hoa*12)*term/12);
+  $("pur_ban_loan").textContent = fmt2(loan);
+  $("pur_ban_int").textContent = fmt2(totalInt);
+  $("pur_ban_save").textContent = fmt2(savedInt);
+  $("pur_ban_pmt").textContent = fmt2(total);
+  $("pur_ban_short").textContent = monthsSaved>0 ? `${Math.floor(monthsSaved/12)}y ${Math.round(monthsSaved%12)}m` : "-";
+
+  $("pur_kv_home").textContent = fmt2(home);
+  $("pur_kv_mort").textContent = fmt2(loan);
+  $("pur_kv_pi").textContent = fmt2(pi);
+  $("pur_kv_xtra").textContent = fmt2(extra);
+  $("pur_kv_tax").textContent = fmt2(taxM);
+  $("pur_kv_ins").textContent = fmt2(insM);
+  $("pur_kv_pmi").textContent = fmt2(pmiM);
+  $("pur_kv_hoa").textContent = fmt2(hoa);
+
+  // PMI until 80% LTV month
+  if (pmiM > 0 && home>0){
+    let bal = loan, mo=0;
+    const r = rate/100/12;
+    while (bal/home > 0.8 && mo < term){
+      bal = bal*(1+r) - pi; mo++;
+    }
+    const d = new Date(); d.setMonth(d.getMonth()+mo);
+    $("pur_pmi_until").textContent = `(Until ${d.toLocaleString("en-US",{month:"long"})}, ${d.getFullYear()})`;
+  } else $("pur_pmi_until").textContent = "";
+
+  makeDonut("purDonut","pur_legend",[
+    {name:"Principal & Interest",v:pi,c:"var(--pi)"},
+    {name:"Taxes",v:taxM,c:"var(--tax)"},
+    {name:"Insurance",v:insM,c:"var(--ins)"},
+    {name:"HOA Dues",v:hoa,c:"var(--hoa)"},
+    {name:"PMI",v:pmiM,c:"var(--pmi)"},
+    {name:"Extra Payment",v:extra,c:"var(--extra)"},
+  ]);
+}
+
+function simulatePayoff(principal, annualRate, n, scheduled, extra, lump){
+  let bal = principal - (lump||0);
+  if (bal<0) bal=0;
+  const r = annualRate/100/12;
+  let mo = 0, interest = 0;
+  while (bal > 0.01 && mo < n*2){
+    const i = bal*r;
+    interest += i;
+    let p = scheduled - i + extra;
+    if (p>=bal){ p=bal; }
+    bal -= p; mo++;
+    if (bal<0) bal=0;
+  }
+  return {months:mo, interest};
+}
+
+/* =========================================================
+   REFINANCE
+========================================================= */
+function refCalc(){
+  const oloan = num("ref_oloan"), orate = num("ref_orate");
+  const oterm = num("ref_oterm") * (modes.ref_oterm_unit==="year"?12:1);
+  const balance = num("ref_balance"), nrate = num("ref_nrate");
+  const nterm = num("ref_nterm") * (modes.ref_nterm_unit==="year"?12:1);
+  const costs = num("ref_costs");
+
+  const curPmt = pmt(oloan, orate, oterm);
+  const newPmt = pmt(balance, nrate, nterm);
+  const dPmt = newPmt - curPmt;
+
+  // remaining interest on current loan from current balance
+  const remTerm = Math.max(1, oterm - monthsElapsedSince($("ref_ostart").value));
+  const remInt  = pmt(balance, orate, remTerm) * remTerm - balance;
+  const newInt  = newPmt * nterm - balance;
+  const dInt    = newInt - remInt;
+
+  $("ref_cur_pmt").textContent = fmt0(curPmt);
+  $("ref_new_pmt").textContent = fmt0(newPmt);
+  $("ref_d_pmt").textContent = fmt0(Math.abs(dPmt));
+  $("ref_cur_int").textContent = fmt0(remInt);
+  $("ref_new_int").textContent = fmt0(newInt);
+  $("ref_d_int").textContent = (dInt>=0?"":"-")+fmt0(Math.abs(dInt));
+
+  $("ref_diff_pmt").textContent = (dPmt>=0?"$ ":"-$ ") + Math.round(Math.abs(dPmt)).toLocaleString();
+  $("ref_diff_int").textContent = (dInt>=0?"$ ":"-$ ") + Math.round(Math.abs(dInt)).toLocaleString();
+  $("ref_cost_v").textContent = fmt0(costs);
+  $("ref_recoup").textContent = (dPmt<0) ? Math.ceil(costs/Math.abs(dPmt)) + " mo" : "-";
+
+  $("ref_msg").textContent = dPmt>=0
+    ? `Your monthly payment will increase ${fmt0(Math.abs(dPmt))} per month.`
+    : `Your monthly payment will decrease ${fmt0(Math.abs(dPmt))} per month.`;
+
+  // bar widths
+  const maxPmt = Math.max(curPmt,newPmt,1);
+  $("ref_bar_cur").style.width = (curPmt/maxPmt*100)+"%";
+  $("ref_bar_new").style.width = (newPmt/maxPmt*100)+"%";
+  $("ref_bar_diff").style.width = (Math.abs(dPmt)/maxPmt*100)+"%";
+  const maxInt = Math.max(remInt,newInt,Math.abs(dInt),1);
+  $("ref_bar_cint").style.width = (remInt/maxInt*100)+"%";
+  $("ref_bar_nint").style.width = (newInt/maxInt*100)+"%";
+  $("ref_bar_dint").style.width = (Math.abs(dInt)/maxInt*100)+"%";
+}
+
+function monthsElapsedSince(yyyymm){
+  if (!yyyymm) return 0;
+  const [y,m] = yyyymm.split("-").map(Number);
+  const start = new Date(y, m-1, 1);
+  const now = new Date();
+  return (now.getFullYear()-start.getFullYear())*12 + (now.getMonth()-start.getMonth());
+}
+
+/* =========================================================
+   RENT VS BUY
+========================================================= */
+$("rvb_yrs").addEventListener("input",e=>{$("rvb_yrs_v").textContent=e.target.value;rvbCalc();});
+
+function rvbCalc(){
+  const home = num("rvb_home");
+  const downRaw = num("rvb_down");
+  const down = modes.rvb_down_mode==="pct" ? home*downRaw/100 : downRaw;
+  $("rvb_loan").value = Math.max(0,Math.round(home-down));
+  const loan = +$("rvb_loan").value;
+  const rate = num("rvb_rate");
+  const term = num("rvb_term") * (modes.rvb_term_unit==="year"?12:1);
+  const years = num("rvb_yrs");
+  const months = years*12;
+  const pi = pmt(loan, rate, term);
+  const appr = num("rvb_appr")/100;
+  const sellPct = num("rvb_sell")/100;
+
+  // simulate buy
+  const r = rate/100/12;
+  let bal = loan, interestPaid = 0;
+  for (let i=0;i<months;i++){
+    const intp = bal*r;
+    interestPaid += intp;
+    bal -= (pi - intp);
+    if (bal<0) bal=0;
+  }
+  const buyCash = down + pi*months;
+  const futureHome = home * Math.pow(1+appr, years);
+  const closeOnSale = futureHome * sellPct;
+  const buyAdjusted = buyCash - (futureHome - bal - closeOnSale);
+
+  // simulate rent
+  const rent0 = num("rvb_rent");
+  const rentUp = num("rvb_rentup")/100;
+  let rentTotal = 0, monthlyRent = rent0;
+  for (let y=0;y<years;y++){
+    rentTotal += monthlyRent*12;
+    monthlyRent *= (1+rentUp);
+  }
+
+  const buyGain = rentTotal - buyAdjusted;
+
+  $("rvb_yrs_v").textContent = years;
+  $("rvb_yr_card").textContent = years;
+  $("rvb_cash_b").textContent = fmt0(buyCash);
+  $("rvb_cash_r").textContent = fmt0(rentTotal);
+  $("rvb_hv").textContent = "-" + fmt0(futureHome);
+  $("rvb_bal").textContent = fmt0(bal);
+  $("rvb_close").textContent = fmt0(closeOnSale);
+  $("rvb_adj_b").textContent = fmt0(buyAdjusted);
+  $("rvb_adj_r").textContent = fmt0(rentTotal);
+  $("rvb_buy_card").textContent = "$ " + Math.round(buyAdjusted).toLocaleString();
+  $("rvb_rent_card").textContent = "$ " + Math.round(rentTotal).toLocaleString();
+  $("rvb_gain_card").textContent = "$ " + Math.round(buyGain).toLocaleString();
+
+  // bars
+  const mx = Math.max(buyAdjusted, rentTotal, 1);
+  $("rvb_bar_buy_v").textContent = fmt0(buyAdjusted);
+  $("rvb_bar_rent_v").textContent = fmt0(rentTotal);
+  $("rvb_bar_buy").style.width = (buyAdjusted/mx*100)+"%";
+  $("rvb_bar_rent").style.width = (rentTotal/mx*100)+"%";
+
+  const buyBetter = buyAdjusted < rentTotal;
+  const equity = futureHome - bal;
+  $("rvb_oop").innerHTML = `If you opt for homeownership of a property valued at <b>$ ${Math.round(home).toLocaleString()}</b>, your total expenses out of your pocket for ${years} years would add up to <b>${fmt0(buyAdjusted)}</b>. However, if you choose to rent instead, your overall expenditure would come to <b>${fmt0(rentTotal)}</b>, ${buyBetter?"thus saving you":"costing you an extra"} <b>${fmt0(Math.abs(buyGain))}</b>.`;
+  $("rvb_fg").innerHTML = `After ${years} years, if you choose to purchase the property, the value of equity in your home would be <b>$ ${Math.round(equity).toLocaleString()}</b>, which you can access upon selling it.`;
+  $("rvb_sum").innerHTML = `Based on the overall expenses incurred and the equity gained, it would be more advantageous for you to <b>${buyBetter?"buy":"rent"}</b> the property${buyBetter?` instead of renting, provided you intend to reside in the house for more than ${years} years.`:"."}`;
+}
+
+/* =========================================================
+   VA PURCHASE
+========================================================= */
+function vapCalc(){
+  const home = num("vap_home");
+  const downRaw = num("vap_down");
+  const down = modes.vap_down_mode==="pct" ? home*downRaw/100 : downRaw;
+  $("vap_loan").value = Math.max(0,Math.round(home-down));
+  const baseLoan = +$("vap_loan").value;
+  const term = num("vap_term") * (modes.vap_term_unit==="year"?12:1);
+  const rate = num("vap_rate");
+  const use = $("vap_use").value;
+  // VA funding fee (rough): first time 2.15%, subsequent 3.3%, exempt 0
+  const ffPct = use==="first"?0.0215:use==="repeat"?0.033:0;
+  const fundingFee = baseLoan * ffPct;
+  const loan = baseLoan + fundingFee;
+  const pi = pmt(loan, rate, term);
+  const tax=num("vap_tax")/12, ins=num("vap_ins")/12, hoa=num("vap_hoa");
+  const total = pi+tax+ins+hoa;
+  const totalInt = totalInterest(loan, rate, term);
+
+  $("vap_total_pmt").textContent = fmt2(total);
+  $("vap_ban_all").textContent = fmt2(loan+totalInt+(tax+ins+hoa)*term);
+  $("vap_ban_loan").textContent = fmt2(loan);
+  $("vap_ban_int").textContent = fmt2(totalInt);
+  $("vap_ban_save").textContent = "$0.00";
+  $("vap_ban_pmt").textContent = fmt2(total);
+  $("vap_ban_short").textContent = "-";
+
+  $("vap_kv_home").textContent = fmt2(home);
+  $("vap_kv_mort").textContent = fmt2(loan);
+  $("vap_kv_pi").textContent = fmt2(pi);
+  $("vap_kv_tax").textContent = fmt2(tax);
+  $("vap_kv_ins").textContent = fmt2(ins);
+  $("vap_kv_hoa").textContent = fmt2(hoa);
+  $("vap_kv_ff").textContent = fmt2(fundingFee);
+
+  makeDonut("vapDonut","vap_legend",[
+    {name:"Principal & Interest",v:pi,c:"var(--pi)"},
+    {name:"Taxes",v:tax,c:"var(--tax)"},
+    {name:"Insurance",v:ins,c:"var(--ins)"},
+    {name:"HOA Dues",v:hoa,c:"var(--hoa)"},
+    {name:"Extra Payment",v:0,c:"var(--extra)"},
+  ]);
+}
+
+/* =========================================================
+   VA REFINANCE  (same model)
+========================================================= */
+function varCalc(){
+  const oloan = num("var_oloan"), orate = num("var_orate");
+  const oterm = num("var_oterm") * (modes.var_oterm_unit==="year"?12:1);
+  const balance = num("var_balance"), nrate = num("var_nrate");
+  const nterm = num("var_nterm") * (modes.var_nterm_unit==="year"?12:1);
+  const costs = num("var_costs");
+  const curPmt = pmt(oloan, orate, oterm);
+  const newPmt = pmt(balance, nrate, nterm);
+  const dPmt = newPmt - curPmt;
+  const remTerm = Math.max(1, oterm - monthsElapsedSince($("var_ostart").value));
+  const remInt = pmt(balance, orate, remTerm) * remTerm - balance;
+  const newInt = newPmt*nterm - balance;
+  const dInt = newInt - remInt;
+
+  $("var_cur_pmt").textContent = fmt0(curPmt);
+  $("var_new_pmt").textContent = fmt0(newPmt);
+  $("var_d_pmt").textContent = fmt0(Math.abs(dPmt));
+  $("var_cur_int").textContent = fmt0(remInt);
+  $("var_new_int").textContent = fmt0(newInt);
+  $("var_d_int").textContent = (dInt>=0?"":"-")+fmt0(Math.abs(dInt));
+  $("var_diff_pmt").textContent = (dPmt>=0?"$ ":"-$ ")+Math.round(Math.abs(dPmt)).toLocaleString();
+  $("var_diff_int").textContent = (dInt>=0?"$ ":"-$ ")+Math.round(Math.abs(dInt)).toLocaleString();
+  $("var_cost_v").textContent = fmt0(costs);
+  $("var_recoup").textContent = (dPmt<0)? Math.ceil(costs/Math.abs(dPmt))+" mo" : "-";
+  $("var_msg").textContent = dPmt>=0
+    ? `Your monthly payment will increase ${fmt0(Math.abs(dPmt))} per month.`
+    : `Your monthly payment will decrease ${fmt0(Math.abs(dPmt))} per month.`;
+
+  const maxPmt = Math.max(curPmt,newPmt,1);
+  $("var_bar_cur").style.width = (curPmt/maxPmt*100)+"%";
+  $("var_bar_new").style.width = (newPmt/maxPmt*100)+"%";
+  $("var_bar_diff").style.width = (Math.abs(dPmt)/maxPmt*100)+"%";
+  const maxInt = Math.max(remInt,newInt,Math.abs(dInt),1);
+  $("var_bar_cint").style.width = (remInt/maxInt*100)+"%";
+  $("var_bar_nint").style.width = (newInt/maxInt*100)+"%";
+  $("var_bar_dint").style.width = (Math.abs(dInt)/maxInt*100)+"%";
+}
+
+/* =========================================================
+   DSCR
+========================================================= */
+function dscrCalc(){
+  const units = +$("dscr_units").value;
+  const price = num("dscr_price");
+  const rent1 = num("dscr_rent1");
+  const tax = num("dscr_tax"), ins = num("dscr_ins"), hoaM = num("dscr_hoa");
+  const vac = num("dscr_vac")/100;
+  const repair = num("dscr_repair")*12;
+  const util = num("dscr_util");
+  const ltv = num("dscr_ltv")/100;
+  const rate = num("dscr_rate");
+  const origPct = num("dscr_orig")/100;
+
+  const loan = price*ltv;
+  const down = price-loan;
+  const monthlyPI = pmt(loan, rate, 360);
+  const monthly = monthlyPI + tax/12 + ins/12 + hoaM;
+  const annualMortgage = monthlyPI*12;
+
+  const gross = rent1*units*12;
+  const effectiveGross = gross*(1-vac);
+  const opex = tax + ins + hoaM*12 + repair + util;
+  const noi = effectiveGross - opex;
+  const cashFlow = noi - annualMortgage;
+  const cap = price>0? noi/price*100 : 0;
+  const origFee = loan*origPct;
+  const closing = origFee + 5000;
+  const cashNeeded = down + closing;
+  const coc = cashNeeded>0? cashFlow/cashNeeded*100 : 0;
+  const dscr = annualMortgage>0? noi/annualMortgage : 0;
+
+  const setSign = (id, v, isMoney=true, isPct=false) => {
+    const fn = isPct ? v=>v.toFixed(2)+" %" : v=>"$ "+Math.round(Math.abs(v)).toLocaleString();
+    $(id).textContent = (v<0?"-":"")+ fn(v);
+  };
+  $("dscr_cf").textContent = (cashFlow<0?"-":"") + "$ " + Math.round(Math.abs(cashFlow)).toLocaleString();
+  $("dscr_cap").textContent = cap.toFixed(1)+" %";
+  $("dscr_coc").textContent = (coc<0?"- ":"") + Math.abs(coc).toFixed(2)+" %";
+  $("dscr_d").textContent = dscr.toFixed(2);
+
+  $("dscr_kv_loan").textContent = fmt2(loan);
+  $("dscr_kv_dp").textContent = fmt2(down);
+  $("dscr_kv_mp").textContent = fmt2(monthlyPI);
+  $("dscr_kv_total").textContent = fmt2(monthly);
+  $("dscr_kv_of").textContent = fmt2(origFee);
+  $("dscr_m_cc").textContent = fmt2(closing);
+  $("dscr_m_close").textContent = fmt2(cashNeeded);
+  $("dscr_m_unit").textContent = fmt2(price/units);
+  $("dscr_m_gri").textContent = fmt2(gross);
+  $("dscr_m_oe").textContent = fmt2(opex);
+  $("dscr_m_noi").textContent = fmt2(noi);
+  $("dscr_r_cf").textContent = $("dscr_cf").textContent;
+  $("dscr_r_cap").textContent = $("dscr_cap").textContent;
+  $("dscr_r_coc").textContent = $("dscr_coc").textContent;
+  $("dscr_r_d").textContent = dscr.toFixed(2);
+}
+
+/* =========================================================
+   FIX & FLIP
+========================================================= */
+function ffCalc(){
+  const price = num("ff_price");
+  const reno = num("ff_reno");
+  const arv = num("ff_arv");
+  const monthsTerm = +$("ff_len").value;
+  const tax = num("ff_tax"), ins = num("ff_ins");
+  const ltv = num("ff_ltv")/100;
+  const rate = num("ff_rate");
+  const origPct = num("ff_orig")/100;
+  const closePct = num("ff_close")/100;
+  const sellPct = num("ff_sell")/100;
+
+  const loan = price*ltv;
+  const down = price-loan;
+  const monthlyInt = loan*rate/100/12;
+  const totalInt = monthlyInt*monthsTerm;
+  const origFee = loan*origPct;
+  const closing = price*closePct;
+  const costSell = arv*sellPct;
+  const carrying = (tax+ins)*monthsTerm/12;
+  const totalCC = origFee+closing;
+  const beq = down + reno + totalCC + carrying + totalInt;
+  const netProfit = arv - price - reno - totalCC - costSell - totalInt - carrying;
+  const roi = beq>0 ? netProfit/beq*100 : 0;
+  const ltarv = arv>0 ? loan/arv*100 : 0;
+  const totalCash = beq + costSell;
+
+  $("ff_beq").textContent = "$ " + Math.round(beq).toLocaleString();
+  $("ff_np").textContent = "$ " + Math.round(netProfit).toLocaleString();
+  $("ff_roi").textContent = roi.toFixed(2)+" %";
+  $("ff_ltarv").textContent = ltarv.toFixed(2)+" %";
+  $("ff_kv_loan").textContent = fmt2(loan);
+  $("ff_kv_dp").textContent = fmt2(down);
+  $("ff_kv_mip").textContent = fmt2(monthlyInt);
+  $("ff_kv_ti").textContent = fmt2(totalInt);
+  $("ff_kv_of").textContent = fmt2(origFee);
+  $("ff_kv_oc").textContent = fmt2(closing);
+  $("ff_kv_cs").textContent = fmt2(costSell);
+  $("ff_m_cc").textContent = fmt2(totalCC);
+  $("ff_m_carry").textContent = fmt2(carrying);
+  $("ff_m_beq").textContent = fmt2(beq);
+  $("ff_m_total").textContent = fmt2(totalCash);
+  $("ff_r_np").textContent = fmt2(netProfit);
+  $("ff_r_roi").textContent = roi.toFixed(2)+" %";
+  $("ff_r_lt").textContent = ltarv.toFixed(2)+" %";
+}
+
+/* ===== init ===== */
+recalcAll();
+</script>
+</body>
+</html>
